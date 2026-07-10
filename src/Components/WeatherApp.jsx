@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import CurrentWeather from './CurrentWeather';
 import Forecast from './Forecast';
@@ -25,7 +25,7 @@ const WeatherApp = () => {
     setTimeOfDay(hour >= 6 && hour < 18 ? 'day' : 'night');
   }, []);
 
-  const fetchWeather = async (location = selectedLocation) => {
+  const fetchWeather = useCallback(async (location = selectedLocation) => {
     setLoading(true);
     setError('');
     try {
@@ -42,7 +42,14 @@ const WeatherApp = () => {
       console.error('Error fetching weather:', err);
     }
     setLoading(false);
-  };
+  }, [selectedLocation]);
+
+  // Keep a stable ref to the latest fetchWeather so effects can call it
+  // without needing to depend on it (avoids re-running on every location change)
+  const fetchWeatherRef = useRef(fetchWeather);
+  useEffect(() => {
+    fetchWeatherRef.current = fetchWeather;
+  }, [fetchWeather]);
 
   const getCurrentLocation = () => {
     return new Promise((resolve, reject) => {
@@ -75,7 +82,7 @@ const WeatherApp = () => {
         // First try to get current location
         const currentLocation = await getCurrentLocation();
         setSelectedLocation(currentLocation);
-        await fetchWeather(currentLocation);
+        await fetchWeatherRef.current(currentLocation);
       } catch (error) {
         // If current location fails, fall back to New York
         console.log('Falling back to default location:', error.message);
@@ -85,7 +92,7 @@ const WeatherApp = () => {
           value: 'New York'
         };
         setSelectedLocation(defaultLocation);
-        await fetchWeather(defaultLocation);
+        await fetchWeatherRef.current(defaultLocation);
       }
     };
 
